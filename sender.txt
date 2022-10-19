@@ -1,0 +1,200 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace bs
+{
+    [Serializable]
+    public class Class1
+    {
+        public int id { get; set; }
+        public string ten { get; set; }
+        public int tuoi { get; set; }
+        public bool gioitinh { get; set; }
+
+        public Class1() : this(0, "koco",123, false) { }
+        public Class1(int id, string ten, int tuoi, bool gioitinh)
+        {
+            this.id = id;
+            this.ten = ten;
+            this.tuoi = tuoi;
+            this.gioitinh = gioitinh;
+        }
+
+        public override string ToString()
+        {
+            return id+"/"+ten+ "/" + tuoi+ "/" + gioitinh;
+        }
+
+
+    }
+}
+/////////////////////////////SENDER//////////////////////////
+using bs;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Messaging;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace Sender
+{
+    public partial class Form1 : Form
+    {
+        MessageQueue queue = null;
+        public Form1()
+        {
+            InitializeComponent();
+            intit();
+        }
+        private void intit()
+        {
+            string path = @".\private$\concho";
+            if (MessageQueue.Exists(path))
+            {
+                queue = new MessageQueue(path,QueueAccessMode.Send);
+            }
+            else
+            {
+                queue = MessageQueue.Create(path,true);
+            }
+
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            int ma = Int32.Parse(textBox1.Text);
+            string ten = textBox2.Text;
+            int tuoi = Int32.Parse(textBox3.Text);
+            // bool gioitinh = checkBox1.Checked;
+            bool gioitinh = true;
+            if (radioButton2.Checked)
+            {
+                gioitinh = false;
+            }
+            else
+            {
+                gioitinh = true;
+            }
+
+            Class1 st = new Class1(ma,ten,tuoi,gioitinh);
+
+            MessageQueueTransaction stran = new MessageQueueTransaction();
+            stran.Begin();
+            queue.Send(st,stran);
+            stran.Commit();
+
+        }
+    }
+}
+//////////////////////////////////Nhận/////////////////////////////////////
+using bs;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Messaging;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace Reciver
+{
+    public partial class Form1 : Form
+    {
+        MessageQueue queue = null;
+        private List<Class1> list = new List<Class1>();
+        public Form1()
+        {
+            InitializeComponent();
+            init();
+        }
+
+        private void init()
+        {
+            string path = @".\private$\concho";
+            queue = new MessageQueue(path);
+            queue.BeginReceive();
+            queue.ReceiveCompleted += ReceiveCompleted;
+        }
+
+        public void ReceiveCompleted(object sender, ReceiveCompletedEventArgs e)
+        {
+            var msg = e.Message;
+            int type = msg.BodyType;
+            XmlMessageFormatter fmt = new XmlMessageFormatter(
+                new System.Type[] { typeof(string), typeof(Class1) });
+           
+            msg.Formatter = fmt;
+
+            var re = msg.Body;
+
+            String[] a = re.ToString().Split('/');
+            Class1 st = new Class1(Int32.Parse(a[0]), a[1], Int32.Parse(a[2]), Boolean.Parse(a[3]));
+            list.Add(st);
+
+            Thread th = new Thread(delegate ()
+            {
+                if (listBox1.InvokeRequired)
+                {
+                    System.Object[] i = new System.Object[1];
+                    i[0] = a[0];
+                    listBox1.Invoke(new MethodInvoker(delegate
+                    {
+                        listBox1.Items.AddRange(i);
+                    }));
+                }
+            });
+            th.Start();
+            queue.BeginReceive();
+        }
+
+
+
+        private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            textBox1.Clear();
+            textBox2.Clear();
+            textBox3.Clear();
+            int i = listBox1.SelectedIndex;
+
+            textBox1.AppendText(list[i].id.ToString());
+            textBox2.AppendText(list[i].ten.ToString());
+            textBox3.AppendText(list[i].tuoi.ToString());
+
+            checkBox1.Checked = list[i].gioitinh;
+
+
+            if (list[i].gioitinh)
+                comboBox1.SelectedIndex = 0;
+            else
+                comboBox1.SelectedIndex = 1;
+
+
+            if (list[i].gioitinh)
+            {
+                radioButton1.Checked = true;
+                radioButton2.Checked = false;
+            }
+            else
+            {
+                radioButton1.Checked = false;
+                radioButton2.Checked = true;
+            }
+                
+
+        }
+    }
+}
+
+
